@@ -42,9 +42,15 @@ templatePathDictionary = { #Need template for camera turned
 paused = True
 keepRunning = True
 imageAtLastCast = None
+slackThreshold = 30
+slackCounter = 0
+fishCounter = 0
 
 def main():
     global imageAtLastCast
+    global fishCounter
+    global slackCounter
+
     # Register all of our keybindings
     register_hotkeys(bindings)
 
@@ -83,7 +89,7 @@ def main():
         if action == "Cast":
             moveConfidence, _markedImage = compareImages(currentImage, imageAtLastCast)
             print("MoveConfidence: ", moveConfidence)
-            if moveConfidence < 0.85: #If confidence is low that means camera turned, so turn is back before casting
+            if moveConfidence < 0.89: #If confidence is low that means camera turned, so turn us back before casting
                 action = "TurnCast"
         
         print("PerformAction: ",action)
@@ -98,6 +104,7 @@ def main():
         print("Step Duration: ",endTime-startTime)
     
     print("Stopping")
+    print("Caught "+fishCounter+ " Fish")
         
 def compareImages(image, template):
     confidenceValue = 0
@@ -157,18 +164,29 @@ def scaleImage(image):
     return resized
 
 def performAction(previousAction, newAction):
+    global fishCounter
+    global slackThreshold
+    global slackCounter
+
     if(newAction == "Wait"):
         return #Do Nothing
     
     if(newAction == "Hook"):
         if(previousAction == "Hook"):
+            print("Skipping hook")
             return #Do Nothing because we clicked last time
         else:
             pyautogui.click()
             time.sleep(1)
+
+    if(newAction == "Caught"):
+        print("Caught Fish!")
+        fishCounter += 1
+        time.sleep(7)
     
     if(newAction == "Cast"):
         #Click and Hold and release after specified time
+        #pyautogui.keyDown("altleft")
         pyautogui.mouseDown()
         time.sleep(1.9)
         pyautogui.mouseUp()
@@ -180,17 +198,19 @@ def performAction(previousAction, newAction):
 
     if(newAction == "Slack"):
         #Release Click
-        pyautogui.mouseUp()
+        slackCounter += 1
+        if(slackCounter > slackThreshold):
+            print("TOO MUCH SLACK, FORCING REEL")
+            pyautogui.mouseDown()
+        else:
+            pyautogui.mouseUp()
+    else:
+        slackCounter = 0
 
     if(newAction == "TurnCast"):
-        time.sleep(3)
-        win32api.mouse_event(win32con.MOUSEEVENTF_MOVE, int(1800), int(-700), 0, 0)
-        time.sleep(3)
-        #Click and Hold and release after specified time
-        pyautogui.mouseDown()
-        time.sleep(1.9)
-        pyautogui.mouseUp()
+        moveCamera()
         time.sleep(2)
+        togglePauseHotkey()
 
 def determineAction(previousState, newState):
     action = "Unknown"
@@ -322,7 +342,7 @@ def getActionForGreenState(state):
     if(state == "casted"):
         return "Error"
     if(state == "hook"):
-        return "Hook"
+        return "Caught"
     if(state == "success"):
         return "Wait"
     if(state == "casting"):
@@ -342,7 +362,7 @@ def getActionForOrangeState(state):
     if(state == "casted"):
         return "Error"
     if(state == "hook"):
-        return "Hook"
+        return "Caught"
     if(state == "success"):
         return "Wait"
     if(state == "casting"):
@@ -362,7 +382,7 @@ def getActionForRedState(state):
     if(state == "casted"):
         return "Error"
     if(state == "hook"):
-        return "Hook"
+        return "Caught"
     if(state == "success"):
         return "Wait"
     if(state == "casting"):
@@ -388,11 +408,13 @@ def togglePauseHotkey():
         print("Paused")
 
 def stopApplication():
+    print("Killing application")
     global keepRunning
     keepRunning = False
 
 def moveCamera():
-    win32api.mouse_event(win32con.MOUSEEVENTF_MOVE, int(1700), int(-650), 0, 0)
+    print("Turning Camera")
+    win32api.mouse_event(win32con.MOUSEEVENTF_MOVE, int(1500), int(-800), 0, 0)
 
 bindings = [
     [["pause"], None, togglePauseHotkey],
